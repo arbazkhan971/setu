@@ -1,0 +1,12 @@
+.git
+.github
+*.md
+!README.md
+setu
+bin/
+dist/
+config.yaml
+config.local.yaml
+.env
+docs/
+examples/

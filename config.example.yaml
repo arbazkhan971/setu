@@ -1,0 +1,46 @@
+# Setu example configuration.
+# Copy to config.yaml and set your keys (or export them as env vars).
+#
+#   cp config.example.yaml config.yaml
+#   export OPENAI_API_KEY=sk-...
+#   export ANTHROPIC_API_KEY=sk-ant-...
+#   setu --config config.yaml
+
+model_list:
+  # An OpenAI model, requested by clients as "gpt-4o".
+  - model_name: gpt-4o
+    provider: openai
+    params:
+      model: gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+  # A Claude model, exposed under the OpenAI-compatible API as "claude".
+  - model_name: claude
+    provider: anthropic
+    params:
+      model: claude-3-5-sonnet-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # Any OpenAI-compatible endpoint works via base_url (Groq shown here).
+  - model_name: llama-3.1-70b
+    provider: openai
+    params:
+      model: llama-3.1-70b-versatile
+      base_url: https://api.groq.com/openai/v1
+      api_key: os.environ/GROQ_API_KEY
+
+  # A zero-credential echo backend, handy for smoke tests.
+  - model_name: mock
+    provider: mock
+    params: {}
+
+router_settings:
+  # If "gpt-4o" fails, transparently retry on "claude".
+  fallbacks:
+    - gpt-4o: [claude]
+  max_retries: 2
+
+server:
+  port: 4000
+  # Require this bearer token on /v1 routes. Leave empty to disable auth.
+  master_key: os.environ/SETU_MASTER_KEY

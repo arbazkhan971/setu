@@ -1,0 +1,21 @@
+# Binaries
+/setu
+/bin/
+/dist/
+*.exe
+
+# Local config with secrets
+config.yaml
+config.local.yaml
+.env
+
+# Go
+*.test
+*.out
+coverage.*
+vendor/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
