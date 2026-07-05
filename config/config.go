@@ -8,9 +8,14 @@ import (
 	"os"
 	"strings"
 
+	"time"
+
 	"gopkg.in/yaml.v3"
 
+	"github.com/arbazkhan971/setu/cache"
 	"github.com/arbazkhan971/setu/gateway"
+	"github.com/arbazkhan971/setu/policy"
+	"github.com/arbazkhan971/setu/pricing"
 	"github.com/arbazkhan971/setu/provider"
 )
 
@@ -31,6 +36,24 @@ type RouterSettings struct {
 type ServerSettings struct {
 	MasterKey string `yaml:"master_key"`
 	Port      int    `yaml:"port"`
+	Metrics   bool   `yaml:"metrics"`
+}
+
+// CacheSettings configures the response cache.
+type CacheSettings struct {
+	Enabled    bool `yaml:"enabled"`
+	TTL        int  `yaml:"ttl"`         // seconds; <=0 means no expiry
+	MaxEntries int  `yaml:"max_entries"` // <=0 means unbounded
+}
+
+// VirtualKey is a scoped API key clients present instead of the master key.
+type VirtualKey struct {
+	Key       string   `yaml:"key"`
+	Name      string   `yaml:"name"`
+	Models    []string `yaml:"models"`
+	MaxBudget float64  `yaml:"max_budget"`
+	RPM       int      `yaml:"rpm"`
+	TPM       int      `yaml:"tpm"`
 }
 
 // Config is the top-level configuration document.
@@ -38,6 +61,8 @@ type Config struct {
 	ModelList      []ModelEntry   `yaml:"model_list"`
 	RouterSettings RouterSettings `yaml:"router_settings"`
 	Server         ServerSettings `yaml:"server"`
+	VirtualKeys    []VirtualKey   `yaml:"virtual_keys"`
+	Cache          CacheSettings  `yaml:"cache"`
 }
 
 // Load reads and parses a config file.
@@ -132,3 +157,36 @@ func (c *Config) BuildGateway() (*gateway.Gateway, error) {
 
 // MasterKey returns the resolved server master key.
 func (c *Config) MasterKey() string { return resolveEnv(c.Server.MasterKey) }
+
+// BuildEnforcer builds the virtual-key policy enforcer, or nil if no virtual
+// keys are configured. Key secrets support os.environ/VAR resolution.
+func (c *Config) BuildEnforcer() *policy.Enforcer {
+	if len(c.VirtualKeys) == 0 {
+		return nil
+	}
+	keys := make([]*policy.Key, 0, len(c.VirtualKeys))
+	for i, vk := range c.VirtualKeys {
+		name := vk.Name
+		if name == "" {
+			name = fmt.Sprintf("key-%d", i+1)
+		}
+		keys = append(keys, &policy.Key{
+			Secret:    resolveEnv(vk.Key),
+			Name:      name,
+			Models:    vk.Models,
+			MaxBudget: vk.MaxBudget,
+			RPM:       vk.RPM,
+			TPM:       vk.TPM,
+		})
+	}
+	return policy.New(keys, pricing.Default())
+}
+
+// BuildCache builds the response cache, or nil if caching is disabled.
+func (c *Config) BuildCache() *cache.Cache {
+	if !c.Cache.Enabled {
+		return nil
+	}
+	ttl := time.Duration(c.Cache.TTL) * time.Second
+	return cache.New(c.Cache.MaxEntries, ttl)
+}

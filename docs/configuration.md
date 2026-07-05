@@ -75,6 +75,56 @@ server:
 - **`master_key`** — if set, `/v1/*` routes require
   `Authorization: Bearer <master_key>`. Leave empty to disable auth.
 
+## `virtual_keys`
+
+Issue scoped API keys instead of sharing the master key. When any virtual keys
+are configured, `/v1` routes require a valid one; the master key continues to
+work as an unrestricted **admin** credential.
+
+```yaml
+virtual_keys:
+  - key: os.environ/SETU_KEY_TEAM_A
+    name: team-a
+    models: [gpt-4o, claude]   # allowed model names; empty = all
+    max_budget: 50.0           # USD; 0 = unlimited
+    rpm: 120                   # requests per minute; 0 = unlimited
+```
+
+- **`models`** — allowlist; a request for a model not in the list returns
+  `403`.
+- **`max_budget`** — USD ceiling. Setu prices each request from a built-in
+  per-model table and tracks cumulative spend; once exceeded, the key gets
+  `429 insufficient_quota`. Cache hits are free.
+- **`rpm`** — per-key requests-per-minute token bucket; exceeding it returns
+  `429 rate_limit_exceeded`.
+
+Query a key's live usage:
+
+```bash
+curl -H "Authorization: Bearer $KEY" http://localhost:4000/v1/key/info
+# {"key_name":"team-a","spend_usd":1.23,"max_budget_usd":50,"requests":42,...}
+```
+
+## `cache`
+
+An opt-in in-memory response cache for non-streaming requests. Identical
+requests return the cached response without an upstream call, and cache hits
+are not charged to any budget.
+
+```yaml
+cache:
+  enabled: true
+  ttl: 60           # seconds; <=0 means no expiry
+  max_entries: 1000 # LRU capacity; <=0 means unbounded
+```
+
+## Metrics
+
+Set `server.metrics: true` to expose Prometheus metrics at `GET /metrics`:
+`setu_requests_total` (by model/status), `setu_prompt_tokens_total`,
+`setu_completion_tokens_total`, and the `setu_request_duration_seconds`
+latency histogram. The endpoint is unauthenticated so scrapers can reach it.
+
 ## Environment variable resolution
 
 Any string value of the form `os.environ/NAME` is replaced with the value of

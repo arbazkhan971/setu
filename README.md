@@ -23,6 +23,8 @@ The Python LLM gateways are powerful but heavy: a Python runtime, dozens of depe
 - 🔌 **Drop-in OpenAI API** — `/v1/chat/completions`, `/v1/models`. Change one base URL; keep your existing SDK.
 - 🌍 **20+ providers, one dialect** — **OpenAI, Anthropic, Gemini & Cohere** with native translation; **Groq, Mistral, DeepSeek, Together, OpenRouter, Fireworks, xAI, Perplexity, NVIDIA, Ollama, LM Studio** and more as first-class named providers; plus *any* OpenAI-compatible endpoint via `base_url`.
 - ⚖️ **Weighted load balancing** — split traffic across keys, regions, or models by weight (smooth weighted round-robin), with automatic retry coverage of every backend.
+- 🔐 **Virtual keys, budgets & rate limits** — issue scoped API keys with per-key model allowlists, USD budgets with live spend tracking (`/v1/key/info`), and per-minute rate limits.
+- 📊 **Observability & caching** — built-in **Prometheus `/metrics`** (requests, tokens, latency histograms) and an opt-in response cache that skips upstream calls on repeats.
 - 🔁 **Reliability built in** — automatic **retries**, cross-model **fallbacks**, and **round-robin load balancing** across keys/regions.
 - 🌊 **Real streaming** — server-sent events passthrough, unified into OpenAI chunk format across every backend.
 - 🔑 **Passthrough-safe** — unknown request fields (`tools`, `response_format`, `logprobs`, …) are preserved verbatim, so new provider features work before Setu even knows about them.
@@ -142,11 +144,12 @@ Each **provider adapter** translates the unified OpenAI-style schema to and from
 
 ## Roadmap
 
-**Shipping now (M1):** OpenAI + Anthropic + OpenAI-compatible providers · streaming · retries · fallbacks · round-robin load balancing · master-key auth · field passthrough.
+**Shipping now:** 20+ providers (OpenAI, Anthropic, Gemini, Cohere native + 14 OpenAI-compatible) · streaming · retries · cross-model fallbacks · weighted load balancing · virtual keys · per-key budgets & spend tracking · rate limits · response caching · Prometheus metrics · field passthrough.
 
-- [ ] **M2 — breadth & reliability:** native Gemini, Bedrock, Vertex, Cohere, Mistral; weighted & least-latency load balancing; per-deployment timeouts & health checks.
-- [ ] **M3 — gateway features:** virtual API keys, per-key budgets & spend tracking, response caching, rate limiting, `/v1/embeddings`.
-- [ ] **M4 — DX & ops:** Prometheus metrics, structured request logs, Grafana dashboard, admin UI, Helm chart, benchmarks vs LiteLLM.
+- [x] **M1 — core + drop-in proxy**
+- [x] **M2 — breadth & reliability:** native Gemini + Cohere; weighted load balancing.
+- [x] **M3 — gateway features:** virtual API keys, per-key budgets & spend tracking, response caching, rate limiting, Prometheus metrics.
+- [ ] **M4 — launch:** benchmarks vs LiteLLM, docs site, Grafana dashboard, `/v1/embeddings`, native Bedrock/Vertex.
 
 Want something bumped up? [Open an issue](https://github.com/arbazkhan971/setu/issues).
 

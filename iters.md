@@ -82,6 +82,19 @@ Ran a 3-lens adversarial review + per-finding verification workflow (14 agents,
   config (default 1). New test asserts an exact 3:1 split.
 - Setu now serves **20+ providers**. Full suite green under `-race`.
 
-_Next: `/v1/embeddings` (optional Embedder capability), per-deployment
-timeouts + cooldown health, then M3 gateway features (virtual keys, budgets,
-caching, rate limits, Prometheus metrics)._
+### iter 5 — 2026-07-05 — M3 gateway features
+- **Virtual keys + budgets** (`policy` + `pricing` packages, built by hand):
+  scoped keys with per-key model allowlist, USD budget with live spend
+  tracking (built-in per-model price table, prefix-matched), master key as
+  admin. New endpoint `GET /v1/key/info`.
+- **Metrics / cache / rate-limit** (`metrics`, `cache`, `ratelimit` packages,
+  built by a parallel workflow — 3 build agents + 3 reviewers, **0 findings**):
+  - Prometheus `/metrics` (requests/tokens/latency histogram), zero-dep.
+  - Opt-in LRU+TTL response cache (hits skip upstream, not billed).
+  - Per-key token-bucket RPM rate limiting.
+- Server wires all of it into the request path; config gains `virtual_keys`,
+  `cache`, `server.metrics`. Live-verified end to end (401/200/403/429,
+  key/info spend, /metrics, cache_hit). **99 tests green under -race.**
+
+_Next (M4): benchmarks vs LiteLLM, `/v1/embeddings`, native Bedrock/Vertex,
+docs site + Grafana dashboard, and the Show HN / Reddit launch._

@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/arbazkhan971/setu/config"
+	"github.com/arbazkhan971/setu/metrics"
 	"github.com/arbazkhan971/setu/server"
 
 	// Register built-in providers.
@@ -51,7 +52,12 @@ func main() {
 		listenPort = 4000
 	}
 
-	srv := server.New(gw, cfg.MasterKey())
+	srv := server.New(gw, cfg.MasterKey()).
+		WithPolicy(cfg.BuildEnforcer()).
+		WithCache(cfg.BuildCache())
+	if cfg.Server.Metrics {
+		srv = srv.WithMetrics(metrics.New())
+	}
 	addr := fmt.Sprintf(":%d", listenPort)
 	slog.Info("setu listening", "addr", addr, "version", version, "models", gw.Models())
 	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {

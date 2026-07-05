@@ -43,4 +43,23 @@ router_settings:
 server:
   port: 4000
   # Require this bearer token on /v1 routes. Leave empty to disable auth.
+  # When virtual_keys are set, the master key also acts as an admin credential.
   master_key: os.environ/SETU_MASTER_KEY
+  # Expose Prometheus metrics at GET /metrics.
+  metrics: true
+
+# Response cache for non-streaming requests. A cache hit skips the upstream
+# call and is not charged to any key's budget.
+cache:
+  enabled: false
+  ttl: 60          # seconds; <=0 means no expiry
+  max_entries: 1000 # <=0 means unbounded
+
+# Scoped virtual API keys. When present, clients must send a valid key; each
+# key can be limited to specific models, a USD budget, and a request rate.
+virtual_keys:
+  - key: os.environ/SETU_KEY_TEAM_A
+    name: team-a
+    models: [gpt-4o, claude]   # allowed model names; empty = all
+    max_budget: 50.0           # USD; 0 = unlimited (see GET /v1/key/info)
+    rpm: 120                   # requests per minute; 0 = unlimited
