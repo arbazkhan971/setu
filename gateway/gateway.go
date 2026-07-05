@@ -1,6 +1,6 @@
 // Package gateway routes unified chat requests across one or more
-// deployments per model, applying round-robin load balancing, retries,
-// and cross-model fallbacks.
+// deployments per model, applying weighted load balancing, retries, and
+// cross-model fallbacks.
 package gateway
 
 import (
@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"sync/atomic"
+	"sync"
 
 	"github.com/arbazkhan971/setu/provider"
 	"github.com/arbazkhan971/setu/types"
@@ -21,20 +21,81 @@ var ErrModelNotFound = errors.New("setu: model not found")
 
 // Deployment is one backend serving a client-facing model name. Multiple
 // deployments may share a model name to load-balance across keys/regions.
+// Weight biases how often a deployment is chosen as the primary target
+// (default 1); it does not affect retry coverage.
 type Deployment struct {
 	ModelName string
 	Provider  provider.Provider
 	Weight    int
 }
 
-// Gateway routes requests to deployments with load balancing, retries,
-// and fallbacks. It is safe for concurrent use.
+func (d *Deployment) weight() int {
+	if d.Weight <= 0 {
+		return 1
+	}
+	return d.Weight
+}
+
+// pool holds the deployments for one model name plus the smooth weighted
+// round-robin (SWRR) state used to pick a primary target.
+type pool struct {
+	deployments []*Deployment
+	total       int
+	mu          sync.Mutex
+	current     []int // SWRR current weights, one per deployment
+}
+
+func newPool(ds []*Deployment) *pool {
+	p := &pool{deployments: ds, current: make([]int, len(ds))}
+	for _, d := range ds {
+		p.total += d.weight()
+	}
+	return p
+}
+
+// startIndex returns the next primary deployment index using SWRR, so over
+// many requests each deployment is chosen in proportion to its weight while
+// the sequence stays smooth. It is safe for concurrent use.
+func (p *pool) startIndex() int {
+	if len(p.deployments) == 1 {
+		return 0
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	best := 0
+	for i, d := range p.deployments {
+		p.current[i] += d.weight()
+		if p.current[i] > p.current[best] {
+			best = i
+		}
+	}
+	p.current[best] -= p.total
+	return best
+}
+
+// ordered returns the deployments starting at the SWRR-chosen primary,
+// followed by the rest in order. A single request therefore covers every
+// distinct deployment on retry, regardless of concurrency.
+func (p *pool) ordered() []*Deployment {
+	ds := p.deployments
+	if len(ds) <= 1 {
+		return ds
+	}
+	start := p.startIndex()
+	out := make([]*Deployment, len(ds))
+	for i := range ds {
+		out[i] = ds[(start+i)%len(ds)]
+	}
+	return out
+}
+
+// Gateway routes requests to deployments with weighted load balancing,
+// retries, and fallbacks. It is safe for concurrent use.
 type Gateway struct {
-	deployments map[string][]*Deployment
-	order       []string
-	fallbacks   map[string][]string
-	maxRetries  int
-	rr          map[string]*uint64
+	pools      map[string]*pool
+	order      []string
+	fallbacks  map[string][]string
+	maxRetries int
 }
 
 // Option configures a Gateway.
@@ -61,18 +122,17 @@ func WithMaxRetries(n int) Option {
 
 // New builds a Gateway from a set of deployments.
 func New(deployments []*Deployment, opts ...Option) *Gateway {
-	g := &Gateway{
-		deployments: map[string][]*Deployment{},
-		fallbacks:   map[string][]string{},
-		maxRetries:  2,
-		rr:          map[string]*uint64{},
-	}
+	byModel := map[string][]*Deployment{}
 	for _, d := range deployments {
-		g.deployments[d.ModelName] = append(g.deployments[d.ModelName], d)
+		byModel[d.ModelName] = append(byModel[d.ModelName], d)
 	}
-	for name := range g.deployments {
-		var c uint64
-		g.rr[name] = &c
+	g := &Gateway{
+		pools:      make(map[string]*pool, len(byModel)),
+		fallbacks:  map[string][]string{},
+		maxRetries: 2,
+	}
+	for name, ds := range byModel {
+		g.pools[name] = newPool(ds)
 		g.order = append(g.order, name)
 	}
 	sort.Strings(g.order)
@@ -94,28 +154,20 @@ func (g *Gateway) Models() []string {
 // to a streaming response.
 func (g *Gateway) CanServe(model string) bool {
 	for _, m := range g.chain(model) {
-		if len(g.deployments[m]) > 0 {
+		if p := g.pools[m]; p != nil && len(p.deployments) > 0 {
 			return true
 		}
 	}
 	return false
 }
 
-// rotated returns the model's deployments ordered from a per-request starting
-// offset. Taking the round-robin offset once per request (rather than once per
-// attempt) load-balances across requests while guaranteeing that a single
-// request's retries cover every distinct deployment, even under concurrency.
-func (g *Gateway) rotated(model string) []*Deployment {
-	ds := g.deployments[model]
-	if len(ds) <= 1 {
-		return ds
+// ordered returns the deployments for a model in weighted, retry-covering
+// order, or nil if the model has no pool.
+func (g *Gateway) ordered(model string) []*Deployment {
+	if p := g.pools[model]; p != nil {
+		return p.ordered()
 	}
-	start := int((atomic.AddUint64(g.rr[model], 1) - 1) % uint64(len(ds)))
-	out := make([]*Deployment, len(ds))
-	for i := range ds {
-		out[i] = ds[(start+i)%len(ds)]
-	}
-	return out
+	return nil
 }
 
 // retryable reports whether an error is worth another attempt or a fallback.
@@ -156,24 +208,27 @@ func (g *Gateway) chain(model string) []string {
 	return chain
 }
 
-func (g *Gateway) attempts(model string) int {
-	n := g.maxRetries + 1
-	if ds := len(g.deployments[model]); ds > n {
-		n = ds // ensure every deployment gets a shot
+// attempts is how many times a single model is tried before its fallbacks:
+// maxRetries+1, but never fewer than the number of deployments so every
+// distinct backend gets a shot.
+func (g *Gateway) attempts(n int) int {
+	a := g.maxRetries + 1
+	if n > a {
+		a = n
 	}
-	return n
+	return a
 }
 
-// ChatCompletion routes a non-streaming request, retrying and falling
-// back on error.
+// ChatCompletion routes a non-streaming request, retrying and falling back
+// on retryable errors.
 func (g *Gateway) ChatCompletion(ctx context.Context, req *types.ChatRequest) (*types.ChatResponse, error) {
 	var lastErr error
 	for _, model := range g.chain(req.Model) {
-		ds := g.rotated(model)
+		ds := g.ordered(model)
 		if len(ds) == 0 {
 			continue
 		}
-		for i := 0; i < g.attempts(model); i++ {
+		for i := 0; i < g.attempts(len(ds)); i++ {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
@@ -194,16 +249,16 @@ func (g *Gateway) ChatCompletion(ctx context.Context, req *types.ChatRequest) (*
 }
 
 // ChatCompletionStream routes a streaming request. A fallback is only
-// attempted while no bytes have been emitted; once streaming begins an
-// upstream failure is surfaced to the client.
+// attempted while no output has been emitted; once real tokens stream to the
+// client, an upstream failure is surfaced rather than retried.
 func (g *Gateway) ChatCompletionStream(ctx context.Context, req *types.ChatRequest, emit provider.StreamFunc) error {
 	var lastErr error
 	for _, model := range g.chain(req.Model) {
-		ds := g.rotated(model)
+		ds := g.ordered(model)
 		if len(ds) == 0 {
 			continue
 		}
-		for i := 0; i < g.attempts(model); i++ {
+		for i := 0; i < g.attempts(len(ds)); i++ {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}

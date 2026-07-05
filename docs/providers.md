@@ -9,6 +9,8 @@ Setu's unified OpenAI-style schema to and from a specific vendor API.
 |---|---|---|
 | `openai` | OpenAI **and any OpenAI-compatible API** | Set `base_url` to reach Groq, Together, OpenRouter, Azure OpenAI, Ollama, vLLM, DeepSeek, Mistral, Fireworks, and more. |
 | `anthropic` | Anthropic Messages API (Claude) | Full request/response + streaming translation. |
+| `gemini` / `google` | Google Gemini (Generative Language API) | Native translation to `generateContent` / `streamGenerateContent`. |
+| `cohere` | Cohere Chat API v2 | Native translation to `/v2/chat`. |
 | `mock` | Offline echo backend | No credentials; great for local dev, CI, and demos. |
 
 ## Named OpenAI-compatible providers

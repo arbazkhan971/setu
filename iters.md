@@ -71,5 +71,17 @@ Ran a 3-lens adversarial review + per-finding verification workflow (14 agents,
 - Launched a background workflow to build native **Gemini** + **Cohere**
   adapters (self-verified + adversarially reviewed) — integrate next.
 
-_Next: integrate Gemini + Cohere from the workflow; then weighted/least-latency
-LB, per-deployment timeouts, and `/v1/embeddings`._
+### iter 4 — 2026-07-05 — M2.2 native adapters + weighted LB
+- **Native Gemini** (`providers/gemini`, registers `gemini`+`google`) and
+  **native Cohere** (`providers/cohere`) adapters, built in parallel by a
+  workflow (2 build agents self-verifying compile+vet+test, then 2 adversarial
+  reviewers). Both passed review with **0 findings**; 12 + 10 unit tests.
+- **Weighted load balancing**: refactored the gateway to smooth weighted
+  round-robin (SWRR) for primary selection while preserving full
+  retry-coverage of every deployment under concurrency; `weight` param in
+  config (default 1). New test asserts an exact 3:1 split.
+- Setu now serves **20+ providers**. Full suite green under `-race`.
+
+_Next: `/v1/embeddings` (optional Embedder capability), per-deployment
+timeouts + cooldown health, then M3 gateway features (virtual keys, budgets,
+caching, rate limits, Prometheus metrics)._

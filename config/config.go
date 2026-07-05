@@ -72,6 +72,26 @@ func str(m map[string]any, key string) string {
 	return ""
 }
 
+// weightOf reads an optional load-balancing weight from a params block,
+// defaulting to 1. YAML decodes integers as int and floats as float64.
+func weightOf(m map[string]any) int {
+	switch v := m["weight"].(type) {
+	case int:
+		if v > 0 {
+			return v
+		}
+	case int64:
+		if v > 0 {
+			return int(v)
+		}
+	case float64:
+		if v > 0 {
+			return int(v)
+		}
+	}
+	return 1
+}
+
 // BuildGateway constructs providers and assembles the gateway.
 func (c *Config) BuildGateway() (*gateway.Gateway, error) {
 	var deps []*gateway.Deployment
@@ -89,7 +109,7 @@ func (c *Config) BuildGateway() (*gateway.Gateway, error) {
 		if err != nil {
 			return nil, fmt.Errorf("model %q: %w", m.ModelName, err)
 		}
-		deps = append(deps, &gateway.Deployment{ModelName: m.ModelName, Provider: p, Weight: 1})
+		deps = append(deps, &gateway.Deployment{ModelName: m.ModelName, Provider: p, Weight: weightOf(m.Params)})
 	}
 
 	fallbacks := map[string][]string{}

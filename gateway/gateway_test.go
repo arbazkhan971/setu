@@ -181,6 +181,25 @@ func TestConcurrentCoverageFindsHealthyDeployment(t *testing.T) {
 	}
 }
 
+func TestWeightedLoadBalancing(t *testing.T) {
+	a, b := 0, 0
+	// Deployment "a" has weight 3, "b" has weight 1 -> ~3:1 primary split.
+	g := New([]*Deployment{
+		{ModelName: "m", Weight: 3, Provider: &stubProvider{name: "a", calls: &a}},
+		{ModelName: "m", Weight: 1, Provider: &stubProvider{name: "b", calls: &b}},
+	})
+	for i := 0; i < 40; i++ {
+		if _, err := g.ChatCompletion(context.Background(), req("m")); err != nil {
+			t.Fatalf("err: %v", err)
+		}
+	}
+	// Each request succeeds on its primary (both healthy), so calls reflect
+	// the weighted primary distribution: a ~= 30, b ~= 10.
+	if a != 30 || b != 10 {
+		t.Fatalf("weighted split off: a=%d b=%d (want 30/10)", a, b)
+	}
+}
+
 func TestModelsSorted(t *testing.T) {
 	g := New([]*Deployment{
 		{ModelName: "zeta", Provider: &stubProvider{name: "z"}},
