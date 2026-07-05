@@ -21,7 +21,7 @@
 The Python LLM gateways are powerful but heavy: a Python runtime, dozens of dependencies, slow cold starts, and real memory pressure under load. Setu is a **single statically-linked binary** — drop it on a box, in a container, or in a Lambda, and it starts in milliseconds.
 
 - 🔌 **Drop-in OpenAI API** — `/v1/chat/completions`, `/v1/models`. Change one base URL; keep your existing SDK.
-- 🌍 **Every provider, one dialect** — OpenAI & Anthropic natively today; every OpenAI-compatible endpoint (Groq, Together, OpenRouter, Azure, Ollama, vLLM, DeepSeek, Mistral…) via `base_url`.
+- 🌍 **17+ providers, one dialect** — OpenAI & Anthropic natively; **Groq, Mistral, DeepSeek, Together, OpenRouter, Fireworks, xAI, Perplexity, NVIDIA, Ollama, LM Studio** and more as first-class named providers; plus *any* OpenAI-compatible endpoint via `base_url`.
 - 🔁 **Reliability built in** — automatic **retries**, cross-model **fallbacks**, and **round-robin load balancing** across keys/regions.
 - 🌊 **Real streaming** — server-sent events passthrough, unified into OpenAI chunk format across every backend.
 - 🔑 **Passthrough-safe** — unknown request fields (`tools`, `response_format`, `logprobs`, …) are preserved verbatim, so new provider features work before Setu even knows about them.

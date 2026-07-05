@@ -59,5 +59,17 @@ Ran a 3-lens adversarial review + per-finding verification workflow (14 agents,
 - Added regression tests incl. a 500-goroutine concurrency-coverage test that
   fails on the old router and passes on the new one. 24 tests green under -race.
 
-_Next: push public repo, then start M2 provider breadth (Gemini/Bedrock/Vertex/
-Cohere/Mistral) + `/v1/embeddings` + weighted load balancing._
+### iter 3 — 2026-07-05 — M1 published + M2.1 provider breadth
+- **Published**: public repo https://github.com/arbazkhan971/setu (MIT), 12
+  discovery topics, GitHub Actions CI green on first push.
+- **M2.1**: added `providers/compat` — 14 named OpenAI-compatible providers
+  (groq, mistral, deepseek, together, openrouter, fireworks, xai, perplexity,
+  deepinfra, anyscale, nvidia, novita, ollama, lmstudio) as thin openai-adapter
+  wrappers with default base URLs + a `named` wrapper for correct Name().
+  Setu now exposes **17+ providers** + any OpenAI endpoint via base_url.
+- Tests: registration + base-URL-override tests. All green.
+- Launched a background workflow to build native **Gemini** + **Cohere**
+  adapters (self-verified + adversarially reviewed) — integrate next.
+
+_Next: integrate Gemini + Cohere from the workflow; then weighted/least-latency
+LB, per-deployment timeouts, and `/v1/embeddings`._

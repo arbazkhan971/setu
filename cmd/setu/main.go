@@ -14,6 +14,7 @@ import (
 
 	// Register built-in providers.
 	_ "github.com/arbazkhan971/setu/providers/anthropic"
+	_ "github.com/arbazkhan971/setu/providers/compat"
 	_ "github.com/arbazkhan971/setu/providers/mock"
 	_ "github.com/arbazkhan971/setu/providers/openai"
 )
